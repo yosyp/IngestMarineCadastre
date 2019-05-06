@@ -1,33 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Ingest 80 GB of CSV Vessel Traffic Data from MarineCadastre to 
-PostgreSQL+PostGIS, create UTM zone polygons
+"""Ingest 80 GB of CSV Vessel Traffic Data from MarineCadastre to PostgreSQL+PostGIS, create UTM zone polygons
 
-    
-*******************************************************************************************
-    **************************** BEFORE EXECUTING THIS SCRIPT 
-*********************************
+    *******************************************************************************************
+    **************************** BEFORE EXECUTING THIS SCRIPT *********************************
     Download data into the same directory as this file, by doing:
-    $ wget -np -r -nH -L --cut-dirs=3 
-https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2017/
-    
-*******************************************************************************************
-    
-*******************************************************************************************
+    $ wget -np -r -nH -L --cut-dirs=3 https://coast.noaa.gov/htdata/CMSP/AISDataHandler/2017/
+    *******************************************************************************************
+    *******************************************************************************************
 
     Running:
     $ python latlon.py > log.txt
 
-    This script is separated into standalone functions for each subtask. 
-A 'zone' table is created and polygons
-    are created as specified by the UTM Mercantor projection, 
-delta-longitude 6 degree, delta-latitude 8 degrees.
+    This script is separated into standalone functions for each subtask. A 'zone' table is created and polygons
+    are created as specified by the UTM Mercantor projection, delta-longitude 6 degree, delta-latitude 8 degrees.
 
-    A 'vessels' table is created that ingests CSV files from 
-MarineCadastre *sequentially* by downloading individual 
-    zip files, copying CSV data to the vessels table, and deleting 
-ingested source files. 
+    A 'vessels' table is created that ingests CSV files from MarineCadastre *sequentially* by downloading individual 
+    zip files, copying CSV data to the vessels table, and deleting ingested source files. 
 
     Requirements:
     1. Python 3.7
@@ -57,45 +47,37 @@ import zipfile
 from progress.bar import Bar, ChargingBar, FillingCirclesBar
 
 """
-Modify the db connection parameters below to reflect your Postgres 
-server details.
+Modify the db connection parameters below to reflect your Postgres server details.
 """
 con = psycopg2.connect(database='yschwab', user='yschwab')
 
 def build_zone_polygons(con):
-    """Build Postgis polygons at 6/8 degree lon/lat intervals on 
-mercantor projection.
+    """Build Postgis polygons at 6/8 degree lon/lat intervals on mercantor projection.
 
-        This function creates a 2D list 'queryvar' that contains the 
-tile name (eg 60X) and
-        the 5 points that created the closed polygon (4 sides, 4 points, 
-1st=5th point).
+        This function creates a 2D list 'queryvar' that contains the tile name (eg 60X) and
+        the 5 points that created the closed polygon (4 sides, 4 points, 1st=5th point).
         Each polygon is added as an individual query.
     """
 
     print("\n[*] Building zones to polygons:")
 
-    llatname = ['C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 
-'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W'] # 'X' mising
+    llatname = ['C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W'] # 'X' mising
     llonname = list(range(1,61))
     llat = list(range(-80, 72, 8))
     llon = list(range(-180, 180, 6))
     queryvar = []
 
-    bar = ChargingBar('[*] Preparing Queries', 
-max=len(llat)*len(llon)+len(llon))
+    bar = ChargingBar('[*] Preparing Queries', max=len(llat)*len(llon)+len(llon))
 
     for (lat, latname) in zip(llat, llatname):
         for (lon, lonname) in zip(llon, llonname):
-            queryvar.append([str(lonname)+latname, lat,lon, lat,lon+6, 
-lat+8,lon+6, lat+8,lon, lat,lon])
+            queryvar.append([str(lonname)+latname, lat,lon, lat,lon+6, lat+8,lon+6, lat+8,lon, lat,lon])
             bar.next()
 
     lat = 72
     latname = 'X'
     for (lon, lonname) in zip(llon, llonname):
-            queryvar.append([str(lonname)+latname, lat,lon, lat,lon+6, 
-lat+12,lon+6, lat+12,lon, lat,lon])
+            queryvar.append([str(lonname)+latname, lat,lon, lat,lon+6, lat+12,lon+6, lat+12,lon, lat,lon])
             bar.next()
 
     bar.finish()
@@ -119,13 +101,9 @@ lat+12,lon+6, lat+12,lon, lat,lon])
             ) As foo
         );
     """
-    query = "INSERT INTO zones (name, polygon) (SELECT %s, 
-ST_MakePolygon(ST_AddPoint(foo.open_line, ST_StartPoint(foo.open_line))) 
-FROM (SELECT ST_GeomFromText('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s 
-%s)') As open_line) As foo);"
+    query = "INSERT INTO zones (name, polygon) (SELECT %s, ST_MakePolygon(ST_AddPoint(foo.open_line, ST_StartPoint(foo.open_line))) FROM (SELECT ST_GeomFromText('LINESTRING(%s %s, %s %s, %s %s, %s %s, %s %s)') As open_line) As foo);"
 
-    bar = FillingCirclesBar('[*] Executing Queries', 
-max=len(llat)*len(llon)+len(llon))
+    bar = FillingCirclesBar('[*] Executing Queries', max=len(llat)*len(llon)+len(llon))
     for i in range(len(queryvar)):
         cur.execute(query, queryvar[i])
         bar.next()
@@ -156,8 +134,7 @@ def create_zones_table(con):
 
 
 def create_vessel_table(con):
-    """Create vessels table that follows the data dictionary in 
-[Sources#2]. Lat/Lon are also stores in Point geometry.
+    """Create vessels table that follows the data dictionary in [Sources#2]. Lat/Lon are also stores in Point geometry.
     """
 
     print("\n[*] Creating vessel table:")
@@ -178,8 +155,7 @@ def create_vessel_table(con):
             sog real,
             cog real,
             heading real,
-            vesselname character varying(32) COLLATE 
-pg_catalog."default",
+            vesselname character varying(32) COLLATE pg_catalog."default",
             imo character varying(16) COLLATE pg_catalog."default",
             callsign character varying(8) COLLATE pg_catalog."default",
             vesseltype integer,
@@ -189,12 +165,9 @@ pg_catalog."default",
             draft real,
             cargo character varying(4) COLLATE pg_catalog."default",
             CONSTRAINT vessels_pkey PRIMARY KEY (gid),
-            CONSTRAINT enforce_dims_the_geom CHECK (st_ndims(the_geom) = 
-2),
-            CONSTRAINT enforce_geotype_geom CHECK 
-(geometrytype(the_geom) = 'POINT'::text OR the_geom IS NULL),
-            CONSTRAINT enforce_srid_the_geom CHECK (st_srid(the_geom) = 
-4326)
+            CONSTRAINT enforce_dims_the_geom CHECK (st_ndims(the_geom) = 2),
+            CONSTRAINT enforce_geotype_geom CHECK (geometrytype(the_geom) = 'POINT'::text OR the_geom IS NULL),
+            CONSTRAINT enforce_srid_the_geom CHECK (st_srid(the_geom) = 4326)
             );""")
     bar.next()
 
@@ -228,9 +201,7 @@ def copy_csv_to_table(con, filename):
     print("[**] vessels table has %d rows" % rows_begin[0])
 
     print("[**] Copying %s to table . . . . . . " % filename)
-    colslist = ('mmsi', 'basedatetime', 'lat', 'lon', 'sog', 'cog', 
-'heading', 'vesselname', 'imo', 'callsign' ,'vesseltype', 'status', 
-'length', 'width', 'draft', 'cargo')
+    colslist = ('mmsi', 'basedatetime', 'lat', 'lon', 'sog', 'cog', 'heading', 'vesselname', 'imo', 'callsign' ,'vesseltype', 'status', 'length', 'width', 'draft', 'cargo')
 
     cur = con.cursor()
     csvlines = ""
@@ -252,8 +223,7 @@ def copy_csv_to_table(con, filename):
     rows_end = cur.fetchone()
     rows_ingested = rows_end[0] - rows_begin[0]
 
-    print("[**] {}/{} rows ingested. vessels table has {} rows 
-total".format(rows_ingested, csvlines, rows_end[0]))
+    print("[**] {}/{} rows ingested. vessels table has {} rows total".format(rows_ingested, csvlines, rows_end[0]))
 
 with con:
     create_zones_table(con)
@@ -262,8 +232,7 @@ with con:
 
     filename = "2017/AIS_2017_{:02d}_Zone{:02d}.zip"
     rmpath = "AIS_ASCII_by_UTM_Month"
-    csvpath = 
-"AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_{:02d}_Zone{:02d}.csv"
+    csvpath = "AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_{:02d}_Zone{:02d}.csv"
     count = 1
 
     """The loop block below does these things at every iteration:
@@ -276,14 +245,12 @@ with con:
     for month in range(1,13): # final value: 13
         for zone in range(1,21): # final value: 21
 
-            if zone == 12 or zone == 13: # data omits zones 12 and 13, 
-skip them here
+            if zone == 12 or zone == 13: # data omits zones 12 and 13, skip them here
                 continue
 
             print("\n[%d/%d] Ingestion beginning" % (count, 12*20))
 
-            with zipfile.ZipFile(filename.format(month, zone),"r") as 
-zip_ref:
+            with zipfile.ZipFile(filename.format(month, zone),"r") as zip_ref:
                 zip_ref.extractall()
                 copy_csv_to_table(con, csvpath.format(month, zone))
                 shutil.rmtree(rmpath)
@@ -291,15 +258,13 @@ zip_ref:
             print('[*] Ingested data cleanup complete.')
             count = count+1
 
-    print("[**] Building GIS geometry from lat long columns . . . . . . 
-")
+    print("[**] Building GIS geometry from lat long columns . . . . . . ")
     print("[**] . . . . . .  this may take a while . . . . . . ")
 
     cur = con.cursor()
     cur.execute("""
                 UPDATE vessels
-                SET the_geom = ST_GeomFromText('POINT(' || LON || ' ' || 
-LAT || ')',4326);
+                SET the_geom = ST_GeomFromText('POINT(' || LON || ' ' || LAT || ')',4326);
                 """)
     con.commit()
 
