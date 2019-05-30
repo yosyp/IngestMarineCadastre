@@ -45,6 +45,7 @@ import shutil
 import requests
 import psycopg2
 import zipfile
+from datetime import datetime
 from progress.bar import Bar, ChargingBar, FillingCirclesBar
 
 """
@@ -201,7 +202,7 @@ def copy_csv_to_table(con, filename):
 
     # print("[**] vessels table has %d rows" % rows_begin[0])
 
-    print("[**] Copying %s to table . . . . . . " % filename)
+    print("[**] Copying %s to table . . . . . . (%s)" % (filename, str(datetime.now())))
     colslist = ('mmsi', 'basedatetime', 'lat', 'lon', 'sog', 'cog', 'heading', 'vesselname', 'imo', 'callsign' ,'vesseltype', 'status', 'length', 'width', 'draft', 'cargo')
 
     cur = con.cursor()
@@ -216,7 +217,7 @@ def copy_csv_to_table(con, filename):
 
     con.commit()
 
-    print("[**] Finished copying %s to table" % filename)
+    print("[**] Finished copying %s to table (%s)" % (filename, str(datetime.now())))
 
     # cur = con.cursor()
     # cur.execute("SELECT COUNT(*) FROM vessels")
@@ -253,7 +254,7 @@ with con:
             else:
                 csvpath = "AIS_ASCII_by_UTM_Month/2017/AIS_2017_{:02d}_Zone{:02d}.csv"
 
-            print("\n[%d/%d] Ingestion beginning" % (count, 12*20))
+            print("\n[%d/%d] (%s) Ingestion beginning" % (count, 12*20, str(datetime.now())))
 
             with zipfile.ZipFile(filename.format(month, zone),"r") as zip_ref:
                 zip_ref.extractall()
