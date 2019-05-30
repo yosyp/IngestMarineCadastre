@@ -21,9 +21,10 @@
 
     Requirements:
     1. Python 3.7
-    2. >100GB disk space
-    3. PostgreSQL hostname, database, password
-    4. Postgis extension installed and enabled
+    2. >100GB compute disk space
+    3. >600GB PostgreSQL disk space
+    4. PostgreSQL hostname, database, password
+    5. Postgis extension installed and enabled
 
     Sources:
     1. https://marinecadastre.gov/ais/
@@ -35,7 +36,7 @@
 
     author: Yosyp Schwab
     email: yschwab@iqt.org
-    date: 2019-05-06
+    date: 2019-05-30
 """
 
 import os
@@ -83,7 +84,7 @@ def build_zone_polygons(con):
     bar.finish()
     cur = con.cursor()
 
-    """
+    """-
     Prettyprinted SQL query:
         INSERT INTO
         zones (name, polygon) (
@@ -146,7 +147,7 @@ def create_vessel_table(con):
     cur.execute("""
             CREATE TABLE public.vessels
             (
-            gid serial NOT NULL,
+            gid bigserial NOT NULL,
             mmsi character varying(11),
             basedatetime timestamp without time zone,
             lat real,
@@ -193,12 +194,12 @@ def copy_csv_to_table(con, filename):
         5. Show ingestion statistics 
     """
 
-    cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM vessels")
-    con.commit()
-    rows_begin = cur.fetchone()
+    # cur = con.cursor()
+    # cur.execute("SELECT COUNT(*) FROM vessels")
+    # con.commit()
+    # rows_begin = cur.fetchone()
 
-    print("[**] vessels table has %d rows" % rows_begin[0])
+    # print("[**] vessels table has %d rows" % rows_begin[0])
 
     print("[**] Copying %s to table . . . . . . " % filename)
     colslist = ('mmsi', 'basedatetime', 'lat', 'lon', 'sog', 'cog', 'heading', 'vesselname', 'imo', 'callsign' ,'vesseltype', 'status', 'length', 'width', 'draft', 'cargo')
@@ -217,13 +218,13 @@ def copy_csv_to_table(con, filename):
 
     print("[**] Finished copying %s to table" % filename)
 
-    cur = con.cursor()
-    cur.execute("SELECT COUNT(*) FROM vessels")
-    con.commit()
-    rows_end = cur.fetchone()
-    rows_ingested = rows_end[0] - rows_begin[0]
+    # cur = con.cursor()
+    # cur.execute("SELECT COUNT(*) FROM vessels")
+    # con.commit()
+    # rows_end = cur.fetchone()
+    # rows_ingested = rows_end[0] - rows_begin[0]
 
-    print("[**] {}/{} rows ingested. vessels table has {} rows total".format(rows_ingested, csvlines, rows_end[0]))
+    # print("[**] {}/{} rows ingested. vessels table has {} rows total".format(rows_ingested, csvlines, rows_end[0]))
 
 with con:
     create_zones_table(con)
@@ -232,7 +233,6 @@ with con:
 
     filename = "2017/AIS_2017_{:02d}_Zone{:02d}.zip"
     rmpath = "AIS_ASCII_by_UTM_Month"
-    csvpath = "AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_{:02d}_Zone{:02d}.csv"
     count = 1
 
     """The loop block below does these things at every iteration:
@@ -248,6 +248,11 @@ with con:
             if zone == 12 or zone == 13: # data omits zones 12 and 13, skip them here
                 continue
 
+            if month < 3: # messy data: Jan and Feb are in /2017_v2/ directory, others in /2017/
+                csvpath = "AIS_ASCII_by_UTM_Month/2017_v2/AIS_2017_{:02d}_Zone{:02d}.csv"
+            else:
+                csvpath = "AIS_ASCII_by_UTM_Month/2017/AIS_2017_{:02d}_Zone{:02d}.csv"
+
             print("\n[%d/%d] Ingestion beginning" % (count, 12*20))
 
             with zipfile.ZipFile(filename.format(month, zone),"r") as zip_ref:
@@ -258,14 +263,15 @@ with con:
             print('[*] Ingested data cleanup complete.')
             count = count+1
 
-    print("[**] Building GIS geometry from lat long columns . . . . . . ")
-    print("[**] . . . . . .  this may take a while . . . . . . ")
+    # print("[**] Building GIS geometry from lat long columns . . . . . . ")
+    # print("[**] . . . . . .  this may take a while . . . . . . ")
 
-    cur = con.cursor()
-    cur.execute("""
-                UPDATE vessels
-                SET the_geom = ST_GeomFromText('POINT(' || LON || ' ' || LAT || ')',4326);
-                """)
-    con.commit()
+    # cur = con.cursor()
+    # cur.execute("""
+    #             UPDATE vessels
+    #             SET the_geom = ST_GeomFromText('POINT(' || LON || ' ' || LAT || ')',4326);
+    #             """)
+    # con.commit()
 
-    print("[**] Built GIS geometry from lat long columns")
+    # print("[**] Built GIS geometry from lat long columns")
+    print("[*] Done!")
