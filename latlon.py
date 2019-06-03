@@ -11,7 +11,8 @@
     *******************************************************************************************
 
     Running:
-    $ python latlon.py > log.txt
+    $ screen
+    $ python latlon.py 
 
     This script is separated into standalone functions for each subtask. A 'zone' table is created and polygons
     are created as specified by the UTM Mercantor projection, delta-longitude 6 degree, delta-latitude 8 degrees.
@@ -19,10 +20,13 @@
     A 'vessels' table is created that ingests CSV files from MarineCadastre *sequentially* by downloading individual 
     zip files, copying CSV data to the vessels table, and deleting ingested source files. 
 
+    CSV imported into PostgreSQL takes 563.414 GB 
+    Lat/lon converted to Geography(Point) PostGIS type takes ....____....
+
     Requirements:
     1. Python 3.7
     2. >100GB compute disk space
-    3. >600GB PostgreSQL disk space
+    3. >1,600GB PostgreSQL disk space
     4. PostgreSQL hostname, database, password
     5. Postgis extension installed and enabled
 
@@ -153,7 +157,7 @@ def create_vessel_table(con):
             basedatetime timestamp without time zone,
             lat real,
             lon real,
-            the_geom geometry,
+            geog GEOGRAPHY(Point),
             sog real,
             cog real,
             heading real,
@@ -166,13 +170,17 @@ def create_vessel_table(con):
             width real,
             draft real,
             cargo character varying(4) COLLATE pg_catalog."default",
-            CONSTRAINT vessels_pkey PRIMARY KEY (gid),
-            CONSTRAINT enforce_dims_the_geom CHECK (st_ndims(the_geom) = 2),
-            CONSTRAINT enforce_geotype_geom CHECK (geometrytype(the_geom) = 'POINT'::text OR the_geom IS NULL),
-            CONSTRAINT enforce_srid_the_geom CHECK (st_srid(the_geom) = 4326)
+            CONSTRAINT vessels_pkey PRIMARY KEY (gid)
             );""")
     bar.next()
 
+    """
+    Old rows:
+    the_geom geometry,
+    CONSTRAINT enforce_dims_the_geom CHECK (st_ndims(the_geom) = 2),
+    CONSTRAINT enforce_geotype_geom CHECK (geometrytype(the_geom) = 'POINT'::text OR the_geom IS NULL),
+    CONSTRAINT enforce_srid_the_geom CHECK (st_srid(the_geom) = 4326)
+    """
     cur.execute("""CREATE INDEX vessels_the_geom_gist
                 ON public.vessels USING gist
                 (the_geom)
@@ -254,7 +262,7 @@ with con:
             else:
                 csvpath = "AIS_ASCII_by_UTM_Month/2017/AIS_2017_{:02d}_Zone{:02d}.csv"
 
-            print("\n[%d/%d] (%s) Ingestion beginning" % (count, 12*20, str(datetime.now())))
+            print("\n[%d/%d] (%s) Ingestion beginning" % (count, 12*18, str(datetime.now())))
 
             with zipfile.ZipFile(filename.format(month, zone),"r") as zip_ref:
                 zip_ref.extractall()
@@ -264,15 +272,16 @@ with con:
             print('[*] Ingested data cleanup complete.')
             count = count+1
 
-    # print("[**] Building GIS geometry from lat long columns . . . . . . ")
-    # print("[**] . . . . . .  this may take a while . . . . . . ")
+    print("[**] Building GIS geometry from lat long columns . . . . . . ")
+    print("[**] . . . . . .  this may take a while . . . . . . ")
+    print("[**] started at (%s) " % str(datetime.now))
 
-    # cur = con.cursor()
-    # cur.execute("""
-    #             UPDATE vessels
-    #             SET the_geom = ST_GeomFromText('POINT(' || LON || ' ' || LAT || ')',4326);
-    #             """)
-    # con.commit()
+    cur = con.cursor()
+    cur.execute("""
+                UPDATE vessels 
+                SET geog =  ST_GeogFromText('SRID=4326;POINT(' || lon || ' ' || lat || ')');
+                """)    
+    con.commit()
 
-    # print("[**] Built GIS geometry from lat long columns")
+    print("[**] Built GIS geometry from lat long columns!")
     print("[*] Done!")
