@@ -181,9 +181,9 @@ def create_vessel_table(con):
     CONSTRAINT enforce_geotype_geom CHECK (geometrytype(the_geom) = 'POINT'::text OR the_geom IS NULL),
     CONSTRAINT enforce_srid_the_geom CHECK (st_srid(the_geom) = 4326)
     """
-    cur.execute("""CREATE INDEX vessels_the_geom_gist
+    cur.execute("""CREATE INDEX vessels_geog_gist
                 ON public.vessels USING gist
-                (the_geom)
+                (geog)
                 TABLESPACE pg_default;""")
     bar.next()
 
